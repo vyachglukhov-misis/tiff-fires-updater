@@ -1,38 +1,39 @@
 {
-    "name": "fires-tiff-updater",
-    "version": "1.0.0",
-    "main": "./src/index.ts",
-    "scripts": {
-        "dev": "nodemon --exec \"node --max-old-space-size=32768 -r ts-node/register\" src/index.ts",
-        "start": "ts-node src/index.ts"
-    },
-    "author": "",
-    "license": "ISC",
-    "description": "",
-    "dependencies": {
-        "@turf/intersect": "^7.2.0",
-        "@turf/turf": "^7.2.0",
-        "cors": "^2.8.5",
-        "dotenv": "^17.2.2",
-        "express": "^5.1.0",
-        "gdal-async": "^3.11.4",
-        "geotiff": "^2.1.4-beta.0",
-        "morgan": "^1.10.1",
-        "node-cron": "^4.2.1",
-        "p-limit": "^7.1.1"
-    },
-    "devDependencies": {
-        "@types/cors": "^2.8.19",
-        "@types/express": "^5.0.3",
-        "@types/geojson": "^7946.0.16",
-        "@types/morgan": "^1.9.10",
-        "@types/node": "^24.4.0",
-        "@types/node-cron": "^3.0.11",
-        "nodemon": "^3.1.10",
-        "ts-node-dev": "^2.0.0",
-        "typescript": "^5.9.2"
-    },
-    "engines": {
-        "node": ">=23.11.0"
-    }
+  "name": "fires-tiff-updater",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "nodemon --exec \"node --max-old-space-size=8192 -r ts-node/register\" src/index.ts",
+    "start": "ts-node src/index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@turf/intersect": "^7.2.0",
+    "@turf/turf": "^7.2.0",
+    "cli-table3": "^0.6.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "gdal-async": "^3.11.4",
+    "geotiff": "^2.1.4-beta.0",
+    "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
+    "p-limit": "^7.1.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/geojson": "^7946.0.16",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.4.0",
+    "@types/node-cron": "^3.0.11",
+    "nodemon": "^3.1.10",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=23.11.0"
+  }
 }
