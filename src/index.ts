@@ -1,32 +1,17 @@
 import fs from "fs";
-import path from "path";
-import bboxPolygon from "@turf/bbox-polygon";
-import booleanIntersects from "@turf/boolean-intersects";
-import { bbox, featureCollection } from "@turf/turf";
-import intersect from "@turf/intersect";
-import * as turf from "@turf/turf";
+import path, { format } from "path";
 import { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import pLimit from "p-limit";
-import { Worker } from "worker_threads";
 import { fork } from "child_process";
-import { CustomCliTable } from "./table";
 import { divideGeojsonOnNSectors } from "./utils/divideGeojsonOnNSectors";
 import { config } from "./config";
+import { formatDuration } from "./utils/formatDuration";
 
-(async () => {
-  const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
-    fs.readFileSync(__dirname + "/krasnoyarsk_krai.geojson", "utf-8")
-  ).features[0];
-
-  const dividedGeojson = divideGeojsonOnNSectors(
-    krasnoyarskGeoJSON,
-    config.dividingSectors
-  );
-
-  const limit = pLimit(8);
-
+function createChildProcesses(features: Feature[]) {
+  const limit = pLimit(config.maxChildProcesses);
   let index = 0;
-  const promises = dividedGeojson.features.map((feature) =>
+
+  const promises = features.map((feature) =>
     limit(
       () =>
         new Promise<void>((resolve, reject) => {
@@ -41,9 +26,11 @@ import { config } from "./config";
           // Ловим сообщения из дочернего процесса
           child.on("message", (msg: any) => {
             if (msg.status === "created") {
-              console.log(`✅ Child завершил ${msg.tileName}`);
+              console.log(
+                `✅ ${child.pid} Child завершил ${msg.tileName}. Размер: ${msg.size}. Существует контент: ${msg.contentExists}`
+              );
               resolve();
-            } else if (msg.status) {
+            } else if (msg.status === "progress") {
               const { tileName, progress } = msg;
               // table.updateProgress(tileName, progress);
             } else {
@@ -59,7 +46,28 @@ import { config } from "./config";
         })
     )
   );
+  return promises;
+}
 
-  await Promise.all(promises).catch((e) => console.log(e));
-  console.log("🏁 Все процессы завершены.");
+(async () => {
+  const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
+    fs.readFileSync(__dirname + "/krasnoyarsk_krai.geojson", "utf-8")
+  ).features[0];
+
+  const dividedGeojson = divideGeojsonOnNSectors(
+    krasnoyarskGeoJSON,
+    config.dividingSectors
+  );
+
+  fs.writeFileSync(
+    __dirname + "/krasnoyarsk_intersected.geojson",
+    JSON.stringify(dividedGeojson)
+  );
+
+  const promises = createChildProcesses(dividedGeojson.features);
+
+  const now = Date.now();
+  await Promise.all(promises);
+  console.log("Все дочерние процессы завершены.");
+  console.log(`Время выполнения: ${formatDuration(Date.now() - now)}`);
 })();

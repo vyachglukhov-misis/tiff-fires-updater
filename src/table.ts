@@ -1,5 +1,7 @@
-var CliTable3 = require("cli-table3");
+import CliTable3 from "cli-table3";
+import * as readline from "readline";
 import {
+  Feature,
   FeatureCollection,
   GeoJsonProperties,
   MultiPolygon,
@@ -12,57 +14,61 @@ interface TileStatus {
 }
 
 export class CustomCliTable {
-  private table: any;
   private statuses: TileStatus[];
+  private lastHeight = 0;
 
-  constructor(
-    public intersectedFeatureCollection: FeatureCollection<
-      Polygon | MultiPolygon,
-      GeoJsonProperties
-    >
-  ) {
-    this.statuses = intersectedFeatureCollection.features.map((f, i) => ({
+  constructor(public features: Feature[]) {
+    this.statuses = features.map((f, i) => ({
       tileName: `tile_${i + 1}`,
       progress: 0,
     }));
 
-    this.table = this.createTable();
-    // this.render(); // начальная таблица
+    this.render(); // первая отрисовка
   }
 
-  /** Создать новый объект таблицы */
-  private createTable() {
-    return new CliTable3({
+  /** Построить таблицу */
+  private buildTable(): string {
+    const table = new CliTable3({
       head: ["Tile", "Progress"],
-      colWidths: [15, 10],
+      colWidths: [15, 15],
     });
+
+    this.statuses.forEach((t) => {
+      table.push([t.tileName, `${t.progress}%`]);
+    });
+
+    return table.toString();
   }
 
-  /** Обновить прогресс конкретного тайла (0..100) */
+  /** Первая отрисовка */
+  private render() {
+    const tableStr = this.buildTable();
+    console.log(tableStr);
+    this.lastHeight = tableStr.split("\n").length;
+  }
+
+  /** Перерисовать таблицу на месте */
+  private redraw() {
+    // поднимаем курсор на количество строк предыдущей таблицы
+    readline.moveCursor(process.stdout, 0, -this.lastHeight);
+    readline.clearScreenDown(process.stdout);
+
+    const tableStr = this.buildTable();
+    process.stdout.write(tableStr + "\n");
+    this.lastHeight = tableStr.split("\n").length;
+  }
+
+  /** Обновить прогресс конкретного тайла */
   public updateProgress(tileName: string, progress: number) {
     const tile = this.statuses.find((t) => t.tileName === tileName);
     if (!tile) return;
-
     tile.progress = progress;
-    this.render();
+    this.redraw();
   }
 
-  /** Отрисовать таблицу в консоли */
-  private render() {
-    // Перемещаем курсор в начало и очищаем экран
-    process.stdout.write("\x1b[H\x1b[2J");
-
-    this.table = this.createTable();
-    this.statuses.forEach((t) => {
-      this.table.push([t.tileName, `${t.progress}%`]);
-    });
-
-    console.log(this.table.toString());
-  }
-
-  /** Установить прогресс всех тайлов в 100% (например, при завершении) */
+  /** Завершить */
   public completeAll() {
     this.statuses.forEach((t) => (t.progress = 100));
-    this.render();
+    this.redraw();
   }
 }
