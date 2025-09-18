@@ -20,7 +20,11 @@ export const getFiresObjects = () => {
 
   const fires: FireObject[] = firesObjects
     .filter(
-      (obj: any) => !obj.deleted && obj.object.geo && obj.object.geo.geometry
+      (obj: any) =>
+        !obj.deleted &&
+        obj.object.geo &&
+        obj.object.geo.geometry &&
+        obj.object.geo.geometry.type === "Point"
     )
     .map((obj: any) => ({
       geo: {
@@ -36,7 +40,7 @@ export const getFiresObjects = () => {
   return fires;
 };
 
-export const getFiresObjectsMercatorProjected = () => {
+export const getFiresObjectsProjected = () => {
   const fires = getFiresObjects();
 
   return fires.map((fire) => ({ ...fire, geo: toMercator(fire.geo) }));
