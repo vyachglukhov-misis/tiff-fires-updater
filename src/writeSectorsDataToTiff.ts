@@ -15,13 +15,9 @@ export const writeSectorsDataToTiff = async (
   maxCoefficient: number
 ) => {
   try {
-    const { minX, minY, maxX, maxY } = sectorData.sizes;
-    const { tileName } = sectorData;
-    const { pixelsData } = sectorData;
-
-    const pixelSize = config.pixelSize;
-    const xSize = Math.ceil((maxX - minX) / pixelSize);
-    const ySize = Math.ceil((maxY - minY) / pixelSize);
+    const { minX, minY, maxX, maxY, xSize, ySize, pixelSizeLon, pixelSizeLat } =
+      sectorData.sizes;
+    const { tileName, pixelsData } = sectorData;
 
     const tiffPath = path.join(OUT_DIR, `${tileName}.tif`);
     const driver = gdal.drivers.get("GTiff");
@@ -31,16 +27,26 @@ export const writeSectorsDataToTiff = async (
       "COMPRESS=DEFLATE",
       "BIGTIFF=IF_SAFER",
     ]);
-    const srs = gdal.SpatialReference.fromEPSG(3857);
+
+    // Проекция WGS84
+    const srs = gdal.SpatialReference.fromEPSG(4326);
     dataset.srs = srs;
-    // Устанавливаем геопривязку (GeoTransform)
-    dataset.geoTransform = [minX, pixelSize, 0, maxY, 0, -pixelSize];
+
+    // Геопривязка в градусах
+    dataset.geoTransform = [
+      minX, // top-left x (min longitude)
+      pixelSizeLon, // pixel width (по долготе)
+      0,
+      maxY, // top-left y (max latitude)
+      0,
+      -pixelSizeLat, // pixel height (отрицательное, так как ось Y вниз)
+    ];
 
     const band = dataset.bands.get(1);
 
     let pixelsAffected = 0;
-    // Нормализация и запись в Uint8Array
     const data = new Uint8Array(xSize * ySize);
+
     for (let i = 0; i < xSize * ySize; i++) {
       if (maxCoefficient) {
         data[i] = Math.round((pixelsData[i] / maxCoefficient) * 255);

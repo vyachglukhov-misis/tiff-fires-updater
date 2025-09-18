@@ -8,7 +8,10 @@ import { config } from "./config";
 import { formatDuration } from "./utils/formatDuration";
 import { GetSectorDataResult, SectorData } from "./types/sectorData";
 
-function getSectorsDataPromises(features: Feature[]) {
+import * as turf from "@turf/turf";
+import { getUTMProjection } from "./fires/getFires";
+
+function getSectorsDataPromises(features: Feature[], globalProj: string) {
   const limit = pLimit(config.maxChildProcesses);
   let index = 0;
 
@@ -25,7 +28,7 @@ function getSectorsDataPromises(features: Feature[]) {
           );
 
           // Отправляем данные в дочерний процесс
-          child.send({ feature, tileName });
+          child.send({ feature, tileName, globalProj });
 
           // Ловим сообщения из дочернего процесса
           child.on("message", (msg: any) => {
@@ -100,7 +103,7 @@ function getWriteSectorsToTiffsPromises(
 
 (async () => {
   const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
-    fs.readFileSync(__dirname + "/norilsk.geojson", "utf-8")
+    fs.readFileSync(__dirname + "/krasnoyarsk_krai.geojson", "utf-8")
   ).features[0];
 
   const dividedGeojson = divideGeojsonOnNSectors(
@@ -108,13 +111,21 @@ function getWriteSectorsToTiffsPromises(
     config.dividingSectors
   );
 
+  const centroid = turf.centroid(krasnoyarskGeoJSON).geometry.coordinates;
+  const { proj: globalProj } = getUTMProjection(centroid[0], centroid[1]);
+
+  console.log(globalProj);
+
   fs.writeFileSync(
-    __dirname + "/norilsk_grid.geojson",
+    __dirname + "/krasnoyarsk_krai_grid.geojson",
     JSON.stringify(dividedGeojson)
   );
 
   const now = Date.now();
-  const sectorDataPromises = getSectorsDataPromises(dividedGeojson.features);
+  const sectorDataPromises = getSectorsDataPromises(
+    dividedGeojson.features,
+    globalProj
+  );
 
   const sectorsDataResults = await Promise.all(sectorDataPromises);
   const sectorsData: SectorData[] = sectorsDataResults.map(

@@ -4,7 +4,12 @@ import * as turf from "@turf/turf";
 import { toMercator } from "@turf/projection";
 import gdal, { Point } from "gdal-async";
 import type { Feature } from "geojson";
-import { getFiresObjects, getFiresObjectsProjected } from "./fires/getFires";
+import {
+  getFiresObjects,
+  getFiresObjectsProjected,
+  getUTMProjection,
+  reprojectGeoJSON,
+} from "./fires/getFires";
 import { config } from "./config";
 
 import rbush from "rbush";
@@ -21,74 +26,91 @@ type FirePoint = {
 const OUT_DIR = path.join(__dirname, "tiles");
 if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR);
 
-export const getTileData = async (feature: Feature, tileName: string) => {
-  // Преобразуем feature в метры (Web Mercator)
-  const projected = toMercator(feature);
-  const tileGeom = gdal.Geometry.fromGeoJson(projected.geometry);
+export const getTileData = async (
+  feature: Feature,
+  tileName: string,
+  globalProj: string
+) => {
+  const [minLon, minLat, maxLon, maxLat] = turf.bbox(feature);
 
-  const [minX, minY, maxX, maxY] = turf.bbox(projected);
+  // Размер пикселя в градусах по широте
+  const pixelSizeDegLat = config.pixelSize / 111000; // 1° широты ≈ 111 км
 
-  const pixelSize = config.pixelSize;
-  const xSize = Math.ceil((maxX - minX) / pixelSize);
-  const ySize = Math.ceil((maxY - minY) / pixelSize);
+  // Размер пикселя в градусах по долготе зависит от широты
+  const latCenter = (minLat + maxLat) / 2;
+  const pixelSizeDegLon =
+    config.pixelSize / (111000 * Math.cos((latCenter * Math.PI) / 180));
+
+  const xSize = Math.ceil((maxLon - minLon) / pixelSizeDegLon);
+  const ySize = Math.ceil((maxLat - minLat) / pixelSizeDegLat);
 
   const tempData = new Float32Array(xSize * ySize).fill(0);
 
-  const firesObject = getFiresObjectsProjected();
+  // Подготовка точек пожаров
+  const firesObject = getFiresObjects();
+  const firesPoints = firesObject
+    .filter((f) => f.geo?.geometry?.type === "Point")
+    .map((f) => {
+      const [lon, lat] = f.geo.geometry.coordinates;
+      return { lon, lat };
+    });
 
-  const firesGeoms = firesObject
-    .filter((fire) => fire.geo)
-    .map((fire) => gdal.Geometry.fromGeoJson(fire.geo.geometry));
+  // Индекс для быстрого поиска (в градусах)
+  const fireIndex = new rbush<{
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+    lon: number;
+    lat: number;
+  }>();
+  fireIndex.load(
+    firesPoints.map((f) => ({
+      minX: f.lon,
+      minY: f.lat,
+      maxX: f.lon,
+      maxY: f.lat,
+      ...f,
+    }))
+  );
 
-  const MAX_DIST = config.reliableDistance;
-  const MAX_DIST_SQ = MAX_DIST * MAX_DIST;
-
-  const firesPoints: FirePoint[] = firesGeoms
-    .filter((g) => g.name === "POINT")
-    .map((g) => g as gdal.Point)
-    .map((point) => ({
-      minX: point.x,
-      minY: point.y,
-      maxX: point.x,
-      maxY: point.y,
-      x: point.x,
-      y: point.y,
-    }));
-
-  // Создаём индекс
-  const fireIndex = new rbush<FirePoint>();
-  fireIndex.load(firesPoints);
+  // MAX_DIST в градусах
+  const maxDistDegLat = config.reliableDistance / 111000;
+  const maxDistDegLon =
+    config.reliableDistance / (111000 * Math.cos((latCenter * Math.PI) / 180));
 
   let max_fires_sum_rate = 0;
-  for (let y = 0; y < ySize; y++) {
-    const py = maxY - y * pixelSize - pixelSize / 2;
-    for (let x = 0; x < xSize; x++) {
-      const px = minX + x * pixelSize + pixelSize / 2;
 
-      if (!tileGeom.contains(new gdal.Point(px, py))) {
-        continue;
-      }
+  try {
+    for (let y = 0; y < ySize; y++) {
+      const py = maxLat - y * pixelSizeDegLat - pixelSizeDegLat / 2;
+      for (let x = 0; x < xSize; x++) {
+        const px = minLon + x * pixelSizeDegLon + pixelSizeDegLon / 2;
 
-      const nearbyFires = fireIndex.search({
-        minX: px - MAX_DIST,
-        minY: py - MAX_DIST,
-        maxX: px + MAX_DIST,
-        maxY: py + MAX_DIST,
-      });
+        const nearbyFires = fireIndex.search({
+          minX: px - maxDistDegLon,
+          minY: py - maxDistDegLat,
+          maxX: px + maxDistDegLon,
+          maxY: py + maxDistDegLat,
+        });
 
-      let coeff = 0;
-      for (const fire of nearbyFires) {
-        const dx = fire.x - px;
-        const dy = fire.y - py;
-        const distSq = dx * dx + dy * dy;
-        if (distSq <= MAX_DIST_SQ) {
-          coeff += config.expFunction(Math.sqrt(distSq));
+        let coeff = 0;
+        for (const fire of nearbyFires) {
+          // Расстояние в метрах
+          const dx = (fire.lon - px) * 111000 * Math.cos((py * Math.PI) / 180);
+          const dy = (fire.lat - py) * 111000;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist <= config.reliableDistance) {
+            coeff += config.expFunction(dist);
+          }
         }
-      }
 
-      tempData[y * xSize + x] = coeff;
-      if (coeff > max_fires_sum_rate) max_fires_sum_rate = coeff;
+        tempData[y * xSize + x] = coeff;
+        if (coeff > max_fires_sum_rate) max_fires_sum_rate = coeff;
+      }
     }
+  } catch (e) {
+    throw e;
   }
 
   return {
@@ -98,11 +120,13 @@ export const getTileData = async (feature: Feature, tileName: string) => {
     sizes: {
       xSize,
       ySize,
-      minX,
-      minY,
-      maxX,
-      maxY,
-      pixelSize,
+      minX: minLon,
+      minY: minLat,
+      maxX: maxLon,
+      maxY: maxLat,
+      pixelSizeLon: pixelSizeDegLon,
+      pixelSizeLat: pixelSizeDegLat,
     },
+    proj: "EPSG:4326",
   };
 };

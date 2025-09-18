@@ -10,8 +10,10 @@ export type GetSectorDataResult = {
     minY: number;
     maxX: number;
     maxY: number;
-    pixelSize: number;
+    pixelSizeLon: number;
+    pixelSizeLat: number;
   };
+  proj: string;
 };
 
 export type SectorData = Omit<GetSectorDataResult, "status">;
