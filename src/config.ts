@@ -5,6 +5,6 @@ export const config = {
   expFunction(d: number) {
     return Math.exp(-(d / this.reliableDistance));
   }, // экспоненциальная функция для расчета коэффициента горимости
-  reliableDistance: 1000, // Радиус влияния D (метры), за пределами которого вклад точки считается нулевым.
+  reliableDistance: 5000, // Радиус влияния D (метры), за пределами которого вклад точки считается нулевым.
   isUseGlobalProj: true,
 };
