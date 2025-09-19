@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
-import { toMercator } from "@turf/projection";
 import gdal, { Point } from "gdal-async";
 import type { Feature } from "geojson";
 import {
@@ -110,12 +109,12 @@ export const getTileData = async (
       }
     }
   } catch (e) {
-    throw e;
+    console.log(e)
   }
 
   return {
     tileName,
-    pixelsData: tempData,
+    pixelsData: Array.from(tempData),
     maxCoefficient: max_fires_sum_rate,
     sizes: {
       xSize,

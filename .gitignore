@@ -1,3 +1,6 @@
 node_modules/
 dist
 src/tiles
+src/main_tiff/
+src/out/
+src/opt/

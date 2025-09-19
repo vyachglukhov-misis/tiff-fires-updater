@@ -16,6 +16,7 @@ process.on(
 
       if (writingTiffResult.ok) {
         process.send?.({ status: "writed", ...writingTiffResult.message });
+        process.exit(0)
       } else {
         throw new Error(writingTiffResult.error);
       }
