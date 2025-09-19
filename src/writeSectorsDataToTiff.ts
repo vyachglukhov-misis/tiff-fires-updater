@@ -42,12 +42,20 @@ export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoeffici
         let pixelsAffected = 0
         const data = new Uint16Array(xSize * ySize)
 
-        if (maxCoefficient) {
-            for (let i = 0; i < xSize * ySize; i++) {
-                const gamma = 0.4 // поднимаем слабые значения
-                data[i] = Math.round(Math.pow(pixelsData[i] / maxCoefficient, gamma) * 65535)
+        if (maxCoefficient > 0) {
+            const { gamma, minVisible } = config.normalization
 
-                pixelsAffected++
+            for (let i = 0; i < xSize * ySize; i++) {
+                let val = pixelsData[i] / maxCoefficient
+
+                if (val > 0) {
+                    // Применяем гамма-коррекцию для плавного затухания
+                    val = Math.pow(val, gamma)
+
+                    // Масштабируем в 16-битный диапазон
+                    data[i] = Math.min(65535, Math.round(val * 65535))
+                    pixelsAffected++
+                }
             }
         }
 

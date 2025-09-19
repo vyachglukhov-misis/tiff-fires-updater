@@ -4,8 +4,10 @@ import { getFiresObjects, getFiresObjectsProjected, getUTMProjection, reprojectG
 import { config } from "./config"
 import rbush from "rbush"
 
-function gaussian(dist: number, sigma: number) {
-    return Math.exp(-(dist * dist) / (2 * sigma * sigma))
+function kernel(dist: number, maxDist: number): number {
+    if (dist >= maxDist) return 0
+    const t = 1 - dist / maxDist
+    return t * t * t // кубическая плавная затухание
 }
 
 export const getTileData = async (feature: Feature, tileName: string, globalProj: string) => {
@@ -76,7 +78,7 @@ export const getTileData = async (feature: Feature, tileName: string, globalProj
                 const dy = (fire.lat - py) * 111000
                 const dist = Math.sqrt(dx * dx + dy * dy)
                 if (dist <= config.reliableDistance) {
-                    coeff += gaussian(dist, config.reliableDistance) // здесь гауссиана
+                    coeff += kernel(dist, config.reliableDistance)
                 }
             }
 
