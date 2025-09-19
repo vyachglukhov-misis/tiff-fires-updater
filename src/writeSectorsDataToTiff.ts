@@ -44,7 +44,8 @@ export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoeffici
 
         if (maxCoefficient) {
             for (let i = 0; i < xSize * ySize; i++) {
-                data[i] = Math.round((pixelsData[i] / maxCoefficient) * 65535)
+                const gamma = 0.4 // поднимаем слабые значения
+                data[i] = Math.round(Math.pow(pixelsData[i] / maxCoefficient, gamma) * 65535)
 
                 pixelsAffected++
             }

@@ -4,6 +4,10 @@ import { getFiresObjects, getFiresObjectsProjected, getUTMProjection, reprojectG
 import { config } from "./config"
 import rbush from "rbush"
 
+function gaussian(dist: number, sigma: number) {
+    return Math.exp(-(dist * dist) / (2 * sigma * sigma))
+}
+
 export const getTileData = async (feature: Feature, tileName: string, globalProj: string) => {
     const [minLon, minLat, maxLon, maxLat] = turf.bbox(feature)
 
@@ -72,7 +76,7 @@ export const getTileData = async (feature: Feature, tileName: string, globalProj
                 const dy = (fire.lat - py) * 111000
                 const dist = Math.sqrt(dx * dx + dy * dy)
                 if (dist <= config.reliableDistance) {
-                    coeff += config.expFunction(dist)
+                    coeff += gaussian(dist, config.reliableDistance) // здесь гауссиана
                 }
             }
 

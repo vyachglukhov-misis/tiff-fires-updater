@@ -105,6 +105,7 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
     }
 
     createDirectories()
+    cleanDirectories()
 
     const now = Date.now()
     const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
@@ -139,6 +140,4 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
 
     console.log("Все дочерние процессы завершены.")
     console.log(`Время выполнения: ${formatDuration(Date.now() - now)}`)
-
-    // cleanDirectories()
 })()
