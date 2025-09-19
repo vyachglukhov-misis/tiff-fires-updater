@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "./src/index.ts",
     "scripts": {
-        "dev": "node --max-old-space-size=32768 -r ts-node/register src/index.ts",
+        "dev": "node --max-old-space-size=32768 -r ts-node/register --expose-gc src/index.ts",
         "start": "ts-node src/index.ts"
     },
     "author": "",

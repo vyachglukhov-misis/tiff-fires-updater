@@ -11,6 +11,7 @@ import { GetSectorDataResult, SectorData } from "./types/sectorData"
 import * as turf from "@turf/turf"
 import { getUTMProjection } from "./fires/getFires"
 import { useGdalMerge } from "./useGdalMerge"
+import { cleanDirectories, createDirectories } from "./chores/directoriesManager"
 
 function getSectorsDataPromises(features: Feature[], globalProj: string) {
     const limit = pLimit(config.maxChildProcesses)
@@ -99,6 +100,12 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
 }
 
 ;(async () => {
+    if (global.gc) {
+        global.gc()
+    }
+
+    createDirectories()
+
     const now = Date.now()
     const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
         fs.readFileSync(__dirname + "/krasnoyarsk_krai.geojson", "utf-8")
@@ -124,8 +131,14 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
 
     await Promise.all(writingSectorDataPromises)
 
-    await useGdalMerge()
+    sectorsData.length = 0
+    if (global.gc) {
+        global.gc()
+    }
+    useGdalMerge()
 
     console.log("Все дочерние процессы завершены.")
     console.log(`Время выполнения: ${formatDuration(Date.now() - now)}`)
+
+    // cleanDirectories()
 })()

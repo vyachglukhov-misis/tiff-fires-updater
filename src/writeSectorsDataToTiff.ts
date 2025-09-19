@@ -5,19 +5,19 @@ import gdal, { Point } from "gdal-async"
 import type { Feature } from "geojson"
 import { config } from "./config"
 import { SectorData } from "./types/sectorData"
+import { workingDirectories } from "./chores/directoriesManager"
 
-const OUT_DIR = path.join(__dirname, "tiles")
-if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR)
+const { TILES_OUTPUT_DIR } = workingDirectories
 
 export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoefficient: number) => {
     try {
         const { minX, minY, maxX, maxY, xSize, ySize, pixelSizeLon, pixelSizeLat } = sectorData.sizes
         const { tileName, pixelsData } = sectorData
 
-        const tiffPath = path.join(OUT_DIR, `${tileName}.tif`)
+        const tiffPath = path.join(TILES_OUTPUT_DIR, `${tileName}.tif`)
         const driver = gdal.drivers.get("GTiff")
 
-        const dataset = driver.create(tiffPath, xSize, ySize, 1, gdal.GDT_Byte, [
+        const dataset = driver.create(tiffPath, xSize, ySize, 1, gdal.GDT_UInt16, [
             "TILED=YES",
             "COMPRESS=DEFLATE",
             "BIGTIFF=IF_SAFER",
@@ -40,15 +40,13 @@ export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoeffici
         const band = dataset.bands.get(1)
 
         let pixelsAffected = 0
-        const data = new Uint32Array(xSize * ySize)
+        const data = new Uint16Array(xSize * ySize)
 
-        for (let i = 0; i < xSize * ySize; i++) {
-            if (maxCoefficient) {
-                data[i] = Math.round((pixelsData[i] / maxCoefficient) * 255)
+        if (maxCoefficient) {
+            for (let i = 0; i < xSize * ySize; i++) {
+                data[i] = Math.round((pixelsData[i] / maxCoefficient) * 65535)
 
                 pixelsAffected++
-            } else {
-                data[i] = 0
             }
         }
 
