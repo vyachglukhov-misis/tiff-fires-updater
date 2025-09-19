@@ -4,12 +4,6 @@ import { getFiresObjects, getFiresObjectsProjected, getUTMProjection, reprojectG
 import { config } from "./config"
 import rbush from "rbush"
 
-function kernel(dist: number, maxDist: number): number {
-    if (dist >= maxDist) return 0
-    const t = 1 - dist / maxDist
-    return t * t * t // кубическая плавная затухание
-}
-
 export const getTileData = async (feature: Feature, tileName: string, globalProj: string) => {
     const [minLon, minLat, maxLon, maxLat] = turf.bbox(feature)
 
@@ -78,7 +72,7 @@ export const getTileData = async (feature: Feature, tileName: string, globalProj
                 const dy = (fire.lat - py) * 111000
                 const dist = Math.sqrt(dx * dx + dy * dy)
                 if (dist <= config.reliableDistance) {
-                    coeff += kernel(dist, config.reliableDistance)
+                    coeff += config.kernel(dist)
                 }
             }
 

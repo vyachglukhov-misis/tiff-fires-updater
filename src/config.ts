@@ -2,16 +2,12 @@ export const config = {
     dividingSectors: 256, // на сколько секторов делить регион
     maxChildProcesses: 8, // макс. число дочерних процессов
     pixelSize: 90, // размер пикселя в метрах
-    gaussian(d: number) {
-        const sigma = this.reliableDistance / 2
+    kernel(dist: number): number {
         const D = this.reliableDistance
-        if (d >= D) return 0
-
-        const exp0 = Math.exp(-(d * d) / (2 * sigma * sigma))
-        const expD = Math.exp(-(D * D) / (2 * sigma * sigma))
-
-        return (exp0 - expD) / (1 - expD)
-    }, // экспоненциальная функция для расчета коэффициента горимости
+        if (dist >= D) return 0
+        const t = 1 - dist / D
+        return t * t * t // кубическая плавная затухание
+    },
     reliableDistance: 10000, // Радиус влияния D (метры), за пределами которого вклад точки считается нулевым.
     normalization: {
         gamma: 0.5, // меньше 1 → поднимаем малые значения
