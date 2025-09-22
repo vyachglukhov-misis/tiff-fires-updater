@@ -40,7 +40,7 @@ export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoeffici
         const band = dataset.bands.get(1)
 
         let pixelsAffected = 0
-        const data = new Uint16Array(xSize * ySize)
+        const data = new Uint8Array(xSize * ySize)
 
         if (maxCoefficient > 0) {
             const { gamma, minVisible } = config.normalization
@@ -52,8 +52,7 @@ export const writeSectorsDataToTiff = async (sectorData: SectorData, maxCoeffici
                     // Применяем гамма-коррекцию для плавного затухания
                     val = Math.pow(val, gamma)
 
-                    // Масштабируем в 16-битный диапазон
-                    data[i] = Math.min(65535, Math.round(val * 65535))
+                    data[i] = Math.min(255, Math.round(val * 255))
                     pixelsAffected++
                 }
             }
