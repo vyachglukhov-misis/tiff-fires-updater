@@ -72,7 +72,7 @@ export const getTileData = async (feature: Feature, tileName: string, globalProj
                 const dy = (fire.lat - py) * 111000
                 const dist = Math.sqrt(dx * dx + dy * dy)
                 if (dist <= config.reliableDistance) {
-                    coeff += config.kernel(dist)
+                    coeff += config.calcCoeffFunction(dist)
                 }
             }
 
