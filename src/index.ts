@@ -100,10 +100,6 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
 }
 
 ;(async () => {
-    if (global.gc) {
-        global.gc()
-    }
-
     createDirectories()
     cleanDirectories()
 
@@ -133,9 +129,6 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
     await Promise.all(writingSectorDataPromises)
 
     sectorsData.length = 0
-    if (global.gc) {
-        global.gc()
-    }
     useGdalMerge()
 
     console.log("Все дочерние процессы завершены.")

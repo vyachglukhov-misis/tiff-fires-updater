@@ -5,8 +5,7 @@ export const config = {
     calcCoeffFunction(dist: number): number {
         const D = this.reliableDistance
         if (dist >= D) return 0
-        const t = 1 - dist / D
-        return t * t * t
+        return Math.exp(-dist / D)
     },
     reliableDistance: 10000, // Радиус влияния D (метры), за пределами которого вклад точки считается нулевым.
     normalization: {
