@@ -1,78 +1,58 @@
-import { toMercator } from "@turf/turf";
-import fs from "fs";
-import { Feature, Geometry, Point } from "geojson";
-import path from "path";
+import fs from "fs"
+import { Feature, Point } from "geojson"
+import _ from "lodash"
+import { pathsToRegion, REGIONS } from "../types/regions.enum"
 
-export type FireObject = {
-  geo: Feature<Point>;
-  name: string;
-  createdAt: string;
-  id: string;
-};
-
-import proj4 from "proj4";
-import * as turf from "@turf/turf";
-
-export function getUTMProjection(lon: number, lat: number) {
-  const zone = Math.floor((lon + 180) / 6) + 1;
-  const isNorth = lat >= 0;
-  const epsg = (isNorth ? 32600 : 32700) + zone;
-  return {
-    epsg,
-    proj: `+proj=utm +zone=${zone} ${
-      isNorth ? "+north" : "+south"
-    } +datum=WGS84 +units=m +no_defs`,
-  };
-}
-export function reprojectGeoJSON<T extends turf.AllGeoJSON>(
-  geojson: T,
-  fromProj: string,
-  toProj: string
-): T {
-  // создаём глубокую копию объекта, чтобы не портить исходный
-  const clone = JSON.parse(JSON.stringify(geojson)) as T;
-
-  turf.coordEach(clone, (coord) => {
-    const [x, y] = proj4(fromProj, toProj, coord as [number, number]);
-    coord[0] = x;
-    coord[1] = y;
-  });
-
-  return clone;
+type FireBase = {
+    geo: Feature<Point>
+    name: string
+    createdAt: string
+    id: string
 }
 
-let firesCache: FireObject[] | null = null;
+export type ParamFromObject<T> = {
+    pathToParam: string
+    paramName: string
+    converter: (val: unknown) => T
+}
 
-export const getFiresObjects = () => {
-  if (firesCache) return firesCache;
-  const firesObjects = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "fires.json"), "utf-8")
-  );
+type ParamsToObject<T extends readonly ParamFromObject<any>[]> = {
+    [K in T[number] as K["paramName"]]: ReturnType<K["converter"]>
+}
 
-  const fires: FireObject[] = firesObjects
-    .filter(
-      (obj: any) =>
-        !obj.deleted &&
-        obj.object.geo &&
-        obj.object.geo.geometry &&
-        obj.object.geo.geometry.type === "Point"
-    )
-    .map((obj: any) => ({
-      geo: {
-        type: "Feature",
-        geometry: obj.object.geo.geometry,
-        properties: {},
-      },
-      name: obj.name,
-      createdAt: obj.created,
-      id: obj._id,
-    }));
-  firesCache = fires;
-  return fires;
-};
+export type FireObject<T extends Record<string, unknown> = {}> = FireBase & T
 
-export const getFiresObjectsProjected = () => {
-  const fires = getFiresObjects();
+export type FireObjectWithWeighedParams = FireObject<ParamsToObject<any>>
 
-  return fires.map((fire) => ({ ...fire, geo: toMercator(fire.geo) }));
-};
+export const getFiresObjectsWithOtherParams = <const T extends readonly ParamFromObject<any>[]>(
+    region: REGIONS,
+    params: T
+) => {
+    const { fires: firesRawPath } = pathsToRegion[region]
+    const firesObjects = JSON.parse(fs.readFileSync(firesRawPath, "utf-8"))
+
+    const fires: FireObjectWithWeighedParams[] = firesObjects
+        .filter(
+            (obj: any) =>
+                !obj.deleted && obj.object.geo && obj.object.geo.geometry && obj.object.geo.geometry.type === "Point"
+        )
+        .map((obj: any) => {
+            const paramsData = params.reduce((acc, cur) => {
+                const { paramName, pathToParam, converter } = cur
+                const rawValue = _.get(obj, pathToParam)
+                return { ...acc, [paramName]: converter(rawValue) }
+            }, {} as ParamsToObject<T>)
+            return {
+                ...paramsData,
+                geo: {
+                    type: "Feature",
+                    geometry: obj.object.geo.geometry,
+                    properties: {},
+                },
+                name: obj.name,
+                createdAt: obj.created,
+                id: obj._id,
+            }
+        })
+    return fires
+}

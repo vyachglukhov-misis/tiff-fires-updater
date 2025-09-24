@@ -42,6 +42,5 @@ export const divideGeojsonOnNSectors = (geojson: Feature<MultiPolygon>, NSectors
     }
 
     const intersectedFeatureCollection = turf.featureCollection(intersectedObjects)
-
     return gridFeatureCollection
 }

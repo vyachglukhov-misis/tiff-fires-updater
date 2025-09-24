@@ -1,7 +1,7 @@
 import fs from "fs"
 import path from "path"
 import os from "os"
-const PROJECT_SRC = path.join(__dirname, "..")
+export const PROJECT_SRC = path.join(__dirname, "..")
 
 const TMP_DIR = path.join(os.tmpdir(), "tiff-fires-updater")
 

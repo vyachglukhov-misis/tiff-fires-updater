@@ -1,28 +1,21 @@
-import { Feature } from "geojson";
-import { getTileData } from "../getTileData";
-import { writeSectorsDataToTiff } from "../writeSectorsDataToTiff";
-import { SectorData } from "../types/sectorData";
+import { Feature } from "geojson"
+import { SectorData } from "../types/sectorData.type"
+import { writeSectorsDataToTiff } from "../pipelines/writeSectorsDataToTiff"
 
-process.on(
-  "message",
-  async (msg: { sectorData: SectorData; maxCoefficient: number }) => {
-    const { sectorData, maxCoefficient } = msg;
+process.on("message", async (msg: { sectorData: SectorData; paramsMaxCoeff: Record<string, number> }) => {
+    const { sectorData, paramsMaxCoeff } = msg
 
     try {
-      const writingTiffResult = await writeSectorsDataToTiff(
-        sectorData,
-        maxCoefficient
-      );
+        const writingTiffResult = await writeSectorsDataToTiff(sectorData, paramsMaxCoeff)
 
-      if (writingTiffResult.ok) {
-        process.send?.({ status: "writed", ...writingTiffResult.message });
-        process.exit(0)
-      } else {
-        throw new Error(writingTiffResult.error);
-      }
+        if (writingTiffResult.ok) {
+            process.send?.({ status: "writed", ...writingTiffResult.message })
+            process.exit(0)
+        } else {
+            throw new Error(writingTiffResult.error)
+        }
     } catch (err: any) {
-      process.send?.({ status: "error", error: err.message });
-      process.exit(1);
+        process.send?.({ status: "error", error: err.message })
+        process.exit(1)
     }
-  }
-);
+})

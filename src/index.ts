@@ -6,14 +6,23 @@ import { fork } from "child_process"
 import { divideGeojsonOnNSectors } from "./utils/divideGeojsonOnNSectors"
 import { config } from "./config"
 import { formatDuration } from "./utils/formatDuration"
-import { SectorData } from "./types/sectorData"
+import { SectorData } from "./types/sectorData.type"
 
-import * as turf from "@turf/turf"
-import { getUTMProjection } from "./fires/getFires"
-import { useGdalMerge } from "./useGdalMerge"
+import {
+    FireObject,
+    FireObjectWithWeighedParams,
+    getFiresObjectsWithOtherParams,
+    ParamFromObject,
+} from "./fires/getFires"
 import { cleanDirectories, createDirectories } from "./chores/directoriesManager"
+import { useGdalMerge } from "./pipelines/useGdalMerge"
+import { paramsToRegion, pathsToRegion, REGIONS, WeightedParam } from "./types/regions.enum"
 
-function getSectorsDataPromises(features: Feature[], globalProj: string) {
+function getSectorsDataPromises(
+    features: Feature[],
+    firesObjects: FireObjectWithWeighedParams[],
+    params: WeightedParam<any>[]
+) {
     const limit = pLimit(config.maxChildProcesses)
     let index = 0
 
@@ -25,9 +34,8 @@ function getSectorsDataPromises(features: Feature[], globalProj: string) {
                     const child = fork(path.join(__dirname, "workers", "getSectorData.worker.ts"), {
                         execArgv: ["-r", "ts-node/register/transpile-only", "--max-old-space-size=1024"],
                     })
-
                     // Отправляем данные в дочерний процесс
-                    child.send({ feature, tileName, globalProj })
+                    child.send({ feature, tileName, firesObjects, params })
 
                     // Ловим сообщения из дочернего процесса
                     child.on("message", (msg: any) => {
@@ -60,7 +68,7 @@ function getSectorsDataPromises(features: Feature[], globalProj: string) {
     return promises
 }
 
-function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficient: number) {
+function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], paramsMaxCoeff: Record<string, number>) {
     const limit = pLimit(config.maxChildProcesses)
 
     const promises = sectorsData.map(sectorData =>
@@ -71,7 +79,7 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
                 })
 
                 // Отправляем данные в дочерний процесс
-                child.send({ sectorData, maxCoefficient })
+                child.send({ sectorData, paramsMaxCoeff })
 
                 // Ловим сообщения из дочернего процесса
                 child.on("message", (msg: any) => {
@@ -104,27 +112,39 @@ function getWriteSectorsToTiffsPromises(sectorsData: SectorData[], maxCoefficien
     cleanDirectories()
 
     const now = Date.now()
-    const krasnoyarskGeoJSON: Feature<MultiPolygon> = JSON.parse(
-        fs.readFileSync(__dirname + "/krasnoyarsk_krai.geojson", "utf-8")
-    ).features[0]
 
-    const dividedGeojson = divideGeojsonOnNSectors(krasnoyarskGeoJSON, config.dividingSectors)
+    const region = REGIONS.HB
 
-    const centroid = turf.centroid(krasnoyarskGeoJSON).geometry.coordinates
-    const { proj: globalProj } = getUTMProjection(centroid[0], centroid[1])
+    const { geojson: inputGeojsonPath } = pathsToRegion[region]
 
-    console.log(globalProj)
+    const geojson: Feature<MultiPolygon> = JSON.parse(fs.readFileSync(inputGeojsonPath, "utf-8")).features[0]
 
-    fs.writeFileSync(__dirname + "/krasnoyarsk_krai_grid.geojson", JSON.stringify(dividedGeojson))
+    const dividedGeojson = divideGeojsonOnNSectors(geojson, config.dividingSectors)
 
-    const sectorDataPromises = getSectorsDataPromises(dividedGeojson.features, globalProj)
+    const otherParams = paramsToRegion[region]
 
+    const firesObjects = getFiresObjectsWithOtherParams(region, otherParams)
+
+    const sectorDataPromises = getSectorsDataPromises(dividedGeojson.features, firesObjects, otherParams)
     const sectorsData = await Promise.all(sectorDataPromises)
 
-    const maxCoefficient = sectorsData.reduce((acc, r) => Math.max(acc, r.maxCoefficient), -Infinity)
-    console.log("MAX_COEFFICIENT:", maxCoefficient)
+    const paramsMaxCoeff = sectorsData.reduce<Record<string, number>>((acc, sectorData) => {
+        const { paramsData } = sectorData
 
-    const writingSectorDataPromises = getWriteSectorsToTiffsPromises(sectorsData, maxCoefficient)
+        Object.entries(paramsData).forEach(([paramName, param]) => {
+            const { maxCoeff } = param
+            if (!acc[paramName]) {
+                acc[paramName] = maxCoeff
+                return acc
+            }
+            acc[paramName] = maxCoeff > acc[paramName] ? maxCoeff : acc[paramName]
+        })
+
+        return acc
+    }, {})
+    console.log(paramsMaxCoeff)
+
+    const writingSectorDataPromises = getWriteSectorsToTiffsPromises(sectorsData, paramsMaxCoeff)
 
     await Promise.all(writingSectorDataPromises)
 
